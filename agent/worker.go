@@ -353,6 +353,9 @@ func (w *Worker) ExecuteWithMessage(ctx context.Context, name string, taskID int
 
 func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.AssetStore, ts *db.ExplorationStore, intent *db.Node, hooks harness.HookRunner, emit func(db.Activity), enr EnrichTrigger, notifyFinding func(int64, string), requestID, message string) (harness.TerminalReason, WriteCounts, error) {
 	tsx := NewToolSet(ts, name)
+	// lifetime_auditor 工具面：LIFETIME_API_URL/LIFETIME_TASK_ID 未配置时返回 nil，
+	// SetLifetimeClient(nil) 即不注入任何 lifetime_* 工具。
+	tsx.SetLifetimeClient(NewLifetimeClientFromEnv("lifetime_auditor", name))
 	tsx.SetFindingRecorder(w.findingRecorder)
 	tsx.SetTaskID(taskID)
 	coverageEnabled := as == nil || as.CoverageEnabled(taskID)
@@ -423,6 +426,8 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 	if tc.DeadlineUnix > 0 {
 		settle = wrapupSettlementForTask("worker", []string{"Bash"}, clamped)
 	}
+	// 注意：lifetime 不追加收尾词。2026-11-11 实测强制在收尾写回会让 worker
+	// 在 deadline 前继续写候选而不是收尾 PoC；写回改为 PoC 后的可选动作。
 	opts := agentcore.Options{
 		Provider:        w.prov,
 		SystemPrompt:    system,

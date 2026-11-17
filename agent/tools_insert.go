@@ -651,7 +651,7 @@ func splitLines(s string) []string {
 
 // WorkerTools returns the tool set for a work agent.
 func (t *ToolSet) WorkerTools() []actool.CoreTool {
-	return []actool.CoreTool{
+	tools := []actool.CoreTool{
 		// list_findings 保留：报漏洞前先查本任务已确认漏洞，避免重复上报同一漏洞。
 		t.listFindings(),
 		t.addFinding(), t.recordFact(), t.recordIntelligence(),
@@ -667,6 +667,9 @@ func (t *ToolSet) WorkerTools() []actool.CoreTool {
 		// 以下工具仍【不给】worker，只留给 planner/main（读上下文、跨 work 复盘是规划职责，
 		// worker 只做单条意图的执行与写回）：list_facts / list_companies / list_worker_traces。
 	}
+	// lifetime 审计工具（lifetime_auditor 角色）：仅当 lifetimed 已配置时注入；
+	// worker 不拿 planner 专用的 lifetime_assess。
+	return append(tools, t.lifetimeTools()...)
 }
 
 // MainAgentTools returns the human-interface tool set.

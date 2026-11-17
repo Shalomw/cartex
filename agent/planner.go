@@ -361,6 +361,9 @@ func (p *Planner) Plan(ctx context.Context, taskID int64, as *db.AssetStore, ts 
 	// runs in a detached goroutine so it never adds latency to this round.
 	p.compactor.OnPlannerRound(ctx, ts)
 	tsx := NewToolSet(ts, "planner")
+	// planner 角色工具面：未配置 LIFETIME_API_URL/LIFETIME_TASK_ID 时不注入；
+	// 配置后 planner 额外拿到 lifetime_assess（平台评估入口只允许 planner/reconciler）。
+	tsx.SetLifetimeClient(NewLifetimeClientFromEnv("planner", "planner"))
 	tsx.SetFindingRecorder(p.findingRecorder)
 	if as != nil {
 		tsx.SetAssetStore(as, as.Companies())
@@ -404,6 +407,8 @@ func (p *Planner) Plan(ctx context.Context, taskID int64, as *db.AssetStore, ts 
 	if tc.DeadlineUnix > 0 {
 		settle = wrapupSettlementForTask("planner", nil, clamped)
 	}
+	// 注意：lifetime 不追加 planner 收尾词。候选写回改为 PoC 后的可选动作，
+	// 不再要求 planner 在收尾轮派审计意图（会挤占利用预算）。
 	proxyAddr := p.proxyAddr
 	if p.proxyAddrFn != nil {
 		proxyAddr = p.proxyAddrFn()

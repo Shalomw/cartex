@@ -1,0 +1,2 @@
+// 非 C++ 扩展名，TargetSubdirs 不应收集它。
+new GhostFromTxtFile();

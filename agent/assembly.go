@@ -18,6 +18,7 @@ import (
 type DeferredInfo struct {
 	IntelligenceGuidance string
 	CaseGuidance         string // independent of optional traffic binding
+	LifetimeGuidance     string // only when the final tool list carries lifetime_* tools
 
 	FindingGuidance string            // derived from the final permitted tools, including DB overrides
 	Deferred        []string          // all MCP tool names (schema withheld)
@@ -69,6 +70,9 @@ func AugmentTools(ctx context.Context, agentKey string, base []actool.CoreTool) 
 	out, def.FindingGuidance = findingWorkflowTools(agentKey, out)
 	out, def.CaseGuidance = findingCaseWorkflow(agentKey, out)
 	out, def.IntelligenceGuidance = intelligenceWorkflow(ctx, out)
+	// lifetime guidance 只在实际注入了 lifetime_* 工具时出现（最终工具列表判定，
+	// 因此 ToolResolve/可见性过滤之后仍然准确）。
+	out, def.LifetimeGuidance = lifetimeWorkflow(out)
 	if agentKey == "reporter" && isFindingCaseReview(ctx) {
 		def.FindingGuidance = ""
 		def.CaseGuidance += historicalFindingReviewGuidance

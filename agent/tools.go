@@ -107,6 +107,10 @@ type ToolSet struct {
 	// the planner having to spot it folded into the graph overview. Wired for the main
 	// agent + cross-task orchestration; nil elsewhere → falls back to the bare notify.
 	notifyHint func(texts []string)
+	// lifetime, if set, exposes the lifetimed discovery/query tool surface as
+	// lifetime_* tools on this run. nil = no lifetime tools, so existing agents and
+	// the DB tool catalog (built with a nil-client ToolSet) are unchanged.
+	lifetime *LifetimeClient
 }
 
 // SetNotifyGoal wires the goal-add trigger callback (see ToolSet.notifyGoal). Set only
@@ -172,6 +176,10 @@ func NewToolSet(ts *db.ExplorationStore, worker string) *ToolSet {
 // SetTaskID sets the PG task id on this ToolSet so that report_finding can
 // dual-write to the standalone findings table (which survives task deletion).
 func (t *ToolSet) SetTaskID(id int64) { t.taskID = id }
+
+// SetLifetimeClient wires the lifetimed HTTP client (see LifetimeClient). Called
+// by the worker/planner after NewToolSet; nil keeps the lifetime_* tools off.
+func (t *ToolSet) SetLifetimeClient(c *LifetimeClient) { t.lifetime = c }
 
 // SetCoverageEnabled records whether this task has the asset-coverage feature on
 // (default enabled). Passing false makes graphOverviewData omit the coverage block
@@ -2069,7 +2077,7 @@ func (t *ToolSet) listWorkerTraces() actool.CoreTool {
 
 // PlannerTools is the read + intent-generation + goal-judgement tool set.
 func (t *ToolSet) PlannerTools() []actool.CoreTool {
-	return []actool.CoreTool{
+	tools := []actool.CoreTool{
 		t.graphOverview(), t.listFindings(), t.listFacts(), t.nodeDetail(),
 		// cold-digest §6.1: restore folded cold nodes (digest body → members → detail).
 		t.expandDigest(),
@@ -2089,4 +2097,7 @@ func (t *ToolSet) PlannerTools() []actool.CoreTool {
 		// list_untested_assets：按需查本任务范围内未测资产(类型+分页)，自行决定补测。
 		t.listUntestedAssets(),
 	}
+	// lifetime 审计工具：仅当 LIFETIME_API_URL/LIFETIME_TASK_ID 已配置时注入
+	// （lifetimeTools 对 nil client 返回 nil）；planner 额外拿到 lifetime_assess。
+	return append(tools, t.lifetimeTools()...)
 }
